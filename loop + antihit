@@ -3,314 +3,233 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local player = Players.LocalPlayer
-local LocalUser = player
 
--- ScreenGui
+local LocalUser = Players.LocalPlayer
+
+-- GUI
 local gui = Instance.new("ScreenGui")
 gui.Name = "MaddiesUI"
 gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
+gui.Parent = LocalUser.PlayerGui
 
 -- Main Frame
 local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(260, 260)
+main.Size = UDim2.fromOffset(260, 300)
 main.Position = UDim2.fromScale(0.5, 0.5)
 main.AnchorPoint = Vector2.new(0.5, 0.5)
-main.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-main.BackgroundTransparency = 0.3 -- <--- added transparency (0 = opaque, 1 = fully transparent)
+main.BackgroundColor3 = Color3.fromRGB(20,20,30)
+main.BackgroundTransparency = 0.3
 main.BorderSizePixel = 0
 main.Parent = gui
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 22)
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,22)
 
 -- Title
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -14, 0, 30)
-title.Position = UDim2.fromOffset(7, 6)
+title.Size = UDim2.new(1,-14,0,30)
+title.Position = UDim2.fromOffset(7,6)
 title.BackgroundTransparency = 1
 title.Text = "Maddies Loop & Antihit"
-title.TextColor3 = Color3.fromRGB(255, 120, 200)
+title.TextColor3 = Color3.fromRGB(255,120,200)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 16
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = main
 
--- Accent
-local accent = Instance.new("Frame")
-accent.Size = UDim2.new(1, -24, 0, 3)
-accent.Position = UDim2.fromOffset(12, 42)
-accent.BackgroundColor3 = Color3.fromRGB(255, 120, 200)
-accent.BorderSizePixel = 0
-accent.Parent = main
-Instance.new("UICorner", accent).CornerRadius = UDim.new(1, 0)
-
 -- Labels
 local label1 = Instance.new("TextLabel")
-label1.Size = UDim2.new(1, -24, 0, 18)
-label1.Position = UDim2.fromOffset(12, 50)
+label1.Size = UDim2.new(1,-24,0,18)
+label1.Position = UDim2.fromOffset(12,46)
 label1.BackgroundTransparency = 1
 label1.Text = "Loop Status: OFF"
-label1.TextColor3 = Color3.fromRGB(0, 170, 255)
+label1.TextColor3 = Color3.fromRGB(0,170,255)
 label1.Font = Enum.Font.Gotham
 label1.TextSize = 13
 label1.TextXAlignment = Enum.TextXAlignment.Left
 label1.Parent = main
 
 local label2 = label1:Clone()
-label2.Position = UDim2.fromOffset(12, 68)
+label2.Position = UDim2.fromOffset(12,64)
 label2.Text = "Antihit Status: OFF"
 label2.Parent = main
 
+-- 🔒 Hidden PlayerName (used by loop)
+local PlayerName = Instance.new("TextLabel")
+PlayerName.Text = ""
+PlayerName.Visible = false
+PlayerName.Parent = main
+
 -- Button helper
-local function makeButton(text, y, color)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, -40, 0, 32)
-	btn.Position = UDim2.fromOffset(20, y)
-	btn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-	btn.Text = text
-	btn.TextColor3 = color
-	btn.Font = Enum.Font.Gotham
-	btn.TextSize = 14
-	btn.AutoButtonColor = false
-	btn.Parent = main
-
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 14)
-
-	btn.MouseEnter:Connect(function()
-		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-	end)
-	btn.MouseLeave:Connect(function()
-		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-	end)
-
-	return btn
+local function makeButton(text,y,color)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(1,-40,0,32)
+	b.Position = UDim2.fromOffset(20,y)
+	b.BackgroundColor3 = Color3.fromRGB(30,30,45)
+	b.Text = text
+	b.TextColor3 = color
+	b.Font = Enum.Font.Gotham
+	b.TextSize = 14
+	b.Parent = main
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0,14)
+	return b
 end
 
-local loopBtn = makeButton("Toggle Loop", 94, Color3.fromRGB(255, 120, 200))
-local antiBtn = makeButton("Toggle Antihit", 132, Color3.fromRGB(0, 170, 255))
+local loopBtn = makeButton("Toggle Loop",100,Color3.fromRGB(255,120,200))
+local antiBtn = makeButton("Toggle Antihit",138,Color3.fromRGB(0,170,255))
+local dropBtn = makeButton("Select Player ▼",176,Color3.fromRGB(255,120,200))
 
--- State
-local selectedPlayer = nil
-local loopOn = false
-local antiOn = false
-local loopThread = nil
-local punchConn = nil
-
--- Dropdown button
-local dropBtn = Instance.new("TextButton")
-dropBtn.Size = UDim2.new(1, -40, 0, 30)
-dropBtn.Position = UDim2.fromOffset(20, 174)
-dropBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-dropBtn.Text = "Select Player ▼"
-dropBtn.TextColor3 = Color3.fromRGB(255, 120, 200)
-dropBtn.Font = Enum.Font.Gotham
-dropBtn.TextSize = 14
-dropBtn.AutoButtonColor = false
-dropBtn.Parent = main
-Instance.new("UICorner", dropBtn).CornerRadius = UDim.new(0, 14)
-
--- Scrollable dropdown
+-- Dropdown
 local dropdown = Instance.new("ScrollingFrame")
-dropdown.Position = UDim2.fromOffset(20, 208)
-dropdown.Size = UDim2.new(1, -40, 0, 0)
+dropdown.Position = UDim2.fromOffset(20,214)
+dropdown.Size = UDim2.new(1,-40,0,0)
 dropdown.CanvasSize = UDim2.new(0,0,0,0)
-dropdown.ScrollBarImageTransparency = 0.3
 dropdown.ScrollBarThickness = 6
-dropdown.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
+dropdown.BackgroundColor3 = Color3.fromRGB(25,25,38)
 dropdown.BorderSizePixel = 0
 dropdown.ClipsDescendants = true
-dropdown.Visible = true
 dropdown.Parent = main
-Instance.new("UICorner", dropdown).CornerRadius = UDim.new(0, 14)
+Instance.new("UICorner", dropdown).CornerRadius = UDim.new(0,14)
 
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 6)
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-layout.Parent = dropdown
+local layout = Instance.new("UIListLayout", dropdown)
+layout.Padding = UDim.new(0,6)
 
--- Populate players
+local openDrop = false
+
 local function refreshPlayers()
-	for _, c in ipairs(dropdown:GetChildren()) do
-		if c:IsA("TextButton") then
-			c:Destroy()
+	for _,v in ipairs(dropdown:GetChildren()) do
+		if v:IsA("TextButton") then v:Destroy() end
+	end
+
+	for _,plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalUser then
+			local b = Instance.new("TextButton")
+			b.Size = UDim2.new(1,-12,0,24)
+			b.BackgroundColor3 = Color3.fromRGB(30,30,45)
+			b.Text = plr.DisplayName.." (@"..plr.Name..")"
+			b.TextColor3 = Color3.fromRGB(0,170,255)
+			b.Font = Enum.Font.Gotham
+			b.TextSize = 13
+			b.Parent = dropdown
+			Instance.new("UICorner", b).CornerRadius = UDim.new(0,10)
+
+			b.MouseButton1Click:Connect(function()
+				PlayerName.Text = plr.Name
+				label1.Text = "Target: "..plr.DisplayName
+				openDrop = false
+				dropdown.Size = UDim2.new(1,-40,0,0)
+				dropBtn.Text = "Select Player ▼"
+			end)
 		end
 	end
 
-	for _, plr in ipairs(Players:GetPlayers()) do
-		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(1, -12, 0, 24)
-		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-		btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
-		btn.TextColor3 = Color3.fromRGB(0, 170, 255)
-		btn.Font = Enum.Font.Gotham
-		btn.TextSize = 13
-		btn.AutoButtonColor = false
-		btn.Parent = dropdown
-		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
-
-		btn.MouseButton1Click:Connect(function()
-			selectedPlayer = plr
-			dropBtn.Text = plr.DisplayName .. " ▼"
-
-			if loopOn then
-				label1.Text = "Looping: " .. plr.DisplayName
-			else
-				label1.Text = "Loop Target: " .. plr.DisplayName
-			end
-
-			-- Auto-close dropdown
-			dropdown.Size = UDim2.new(1, -40, 0, 0)
-			openDrop = false
-		end)
-	end
-
 	task.wait()
-	dropdown.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 6)
+	dropdown.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y+6)
 end
 
-refreshPlayers()
-Players.PlayerAdded:Connect(refreshPlayers)
-Players.PlayerRemoving:Connect(refreshPlayers)
-
--- Dropdown toggle
-local openDrop = false
 dropBtn.MouseButton1Click:Connect(function()
 	openDrop = not openDrop
 	if openDrop then
 		refreshPlayers()
-		dropdown.Size = UDim2.new(1, -40, 0, 120)
+		dropdown.Size = UDim2.new(1,-40,0,120)
 		dropBtn.Text = "Select Player ▲"
 	else
-		dropdown.Size = UDim2.new(1, -40, 0, 0)
+		dropdown.Size = UDim2.new(1,-40,0,0)
 		dropBtn.Text = "Select Player ▼"
 	end
 end)
 
--- Loop Button (Persistent & Fast)
+-- 🔁 LOOP (persistent, exact code)
+local loopOn = false
+local loopThread
+
 loopBtn.MouseButton1Click:Connect(function()
-	if not selectedPlayer then
-		label1.Text = "Loop: No Player Selected"
-		return
-	end
-
 	loopOn = not loopOn
+	label1.Text = loopOn and ("Looping: "..PlayerName.Text) or "Loop Status: OFF"
 
-	if loopOn then
-		label1.Text = "Looping: " .. selectedPlayer.DisplayName
-
-		-- Start persistent loop
+	if loopOn and (not loopThread or not loopThread:IsAlive()) then
 		loopThread = task.spawn(function()
 			while loopOn do
-				pcall(function()
-					if selectedPlayer and selectedPlayer.Character and LocalUser.Character then
-						local enemyChar = selectedPlayer.Character
-						local char = LocalUser.Character
+				local field = PlayerName.Text
+				local LocalUser = game.Players.LocalPlayer
+				local ENEMY = field
 
-						if char:FindFirstChild("LeftHand") and char:FindFirstChild("Boxing") and enemyChar:FindFirstChild("LeftHand") then
-							ReplicatedStorage.Remotes.Human_Punch:FireServer(
-								char.LeftHand,
-								"LeftPunch",
-								enemyChar.LeftHand,
-								5,
-								true,
-								"RightPunch",
-								char.Boxing.Handle.Hit,
-								100
-							)
-						end
-					end
+				-- YOUR EXACT PUNCH CODE
+				pcall(function() -- prevents errors if target disappears
+					game.ReplicatedStorage.Remotes.Human_Punch:FireServer(
+						LocalUser.Character.LeftHand,
+						"LeftPunch",
+						game.Workspace[ENEMY].LeftHand,
+						5,
+						true,
+						"RightPunch",
+						LocalUser.Backpack.Boxing.Handle.Hit,
+						100
+					)
 				end)
-				task.wait(0.05) -- faster loop
+
+				task.wait(0.05) -- repeat quickly
+			end
+		end)
+	end
+end)
+
+-- 🛡️ ANTIHIT
+local antiOn = false
+local conn
+
+antiBtn.MouseButton1Click:Connect(function()
+	antiOn = not antiOn
+	label2.Text = "Antihit: "..(antiOn and "ON" or "OFF")
+
+	if antiOn then
+		conn = RunService.RenderStepped:Connect(function()
+			local char = LocalUser.Character
+			if not char then return end
+			local hum = char:FindFirstChild("Humanoid")
+			if hum and hum:FindFirstChild("creator") then
+				local atk = hum.creator.Value
+				if atk and atk.Character then
+					ReplicatedStorage.Remotes.Human_Punch:FireServer(
+						char.RightHand,
+						"RightPunch",
+						atk.Character:FindFirstChild("HumanoidRootPart"),
+						5,
+						true,
+						"RightPunch",
+						LocalUser.Backpack.Boxing.Handle.Hit,
+						5
+					)
+				end
 			end
 		end)
 	else
-		label1.Text = selectedPlayer
-			and ("Loop Target: " .. selectedPlayer.DisplayName)
-			or "Loop Status: OFF"
+		if conn then conn:Disconnect() conn = nil end
 	end
 end)
 
--- Antihit Button
-antiBtn.MouseButton1Click:Connect(function()
-	antiOn = not antiOn
-	label2.Text = "Antihit: " .. (antiOn and "ON" or "OFF")
-
-	if antiOn then
-		punchConn = RunService.RenderStepped:Connect(function()
-			pcall(function()
-				local char = LocalUser.Character
-				if not char then return end
-
-				local hum = char:FindFirstChild("Humanoid")
-				if hum and hum:FindFirstChild("creator") then
-					local attackerName = tostring(hum.creator.Value)
-					local target = Workspace:FindFirstChild(attackerName)
-
-					if target
-						and char:FindFirstChild("RightHand")
-						and char:FindFirstChild("LeftHand") then
-
-						local hit = LocalUser.Backpack:FindFirstChild("Boxing")
-							and LocalUser.Backpack.Boxing.Handle.Hit
-
-						if hit then
-							ReplicatedStorage.Remotes.Human_Punch:FireServer(
-								char.RightHand,
-								"RightPunch",
-								target:FindFirstChild("UpperTorso") or target:FindFirstChild("HumanoidRootPart"),
-								5,
-								true,
-								"RightPunch",
-								hit,
-								5
-							)
-
-							ReplicatedStorage.Remotes.Human_Punch:FireServer(
-								char.LeftHand,
-								"LeftPunch",
-								target:FindFirstChild("UpperTorso") or target:FindFirstChild("HumanoidRootPart"),
-								5,
-								true,
-								"LeftPunch",
-								hit,
-								5
-							)
-						end
-					end
-				end
-			end)
-		end)
-	else
-		if punchConn then punchConn:Disconnect() punchConn = nil end
-	end
-end)
-
--- Draggable
+-- Drag
 do
-	local dragging, dragStart, startPos
+	local dragging, start, pos
 	main.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = true
-			dragStart = i.Position
-			startPos = main.Position
+			start = i.Position
+			pos = main.Position
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 	end)
 	UserInputService.InputChanged:Connect(function(i)
 		if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
-			local delta = i.Position - dragStart
-			main.Position = startPos + UDim2.fromOffset(delta.X, delta.Y)
+			local d = i.Position - start
+			main.Position = pos + UDim2.fromOffset(d.X,d.Y)
 		end
 	end)
 end
 
--- Toggle UI with F
+-- Toggle UI (F)
 local open = true
-UserInputService.InputBegan:Connect(function(i, gp)
+UserInputService.InputBegan:Connect(function(i,gp)
 	if gp then return end
 	if i.KeyCode == Enum.KeyCode.F then
 		open = not open
